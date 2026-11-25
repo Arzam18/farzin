@@ -349,6 +349,8 @@ pub struct Thread {
     pub root_filter: Vec<Move>,
     /// Probe Syzygy WDL tables inside the search.
     pub tb_probe: bool,
+    /// Tablebase result of the root (side to move, -2..=2), if probed.
+    pub root_tb_wdl: Option<i32>,
 }
 
 /// Records roughly one in `rate` static evaluations made by the search,
@@ -445,6 +447,7 @@ impl Thread {
             optimism: [0; 2],
             root_filter: Vec::new(),
             tb_probe: false,
+            root_tb_wdl: None,
         }
     }
 
@@ -1529,6 +1532,16 @@ impl Thread {
         if self.silent {
             return;
         }
+        // With the root in the tablebases, report the proven result (as
+        // GUIs adjudicate on scores) unless the search has found a mate.
+        let score = match self.root_tb_wdl {
+            Some(wdl) if score.abs() < MATE_BOUND => match wdl {
+                2 => TB_WIN - 1,
+                -2 => -TB_WIN + 1,
+                w => w,
+            },
+            _ => score,
+        };
         let elapsed = self.start.elapsed().as_millis().max(1) as u64;
         let nodes = shared.nodes.load(Ordering::Relaxed) + (self.nodes - self.flushed_nodes);
         let bound = if score >= beta {
@@ -1730,8 +1743,8 @@ pub fn search(
     shared.tt.new_search();
     // Tablebases: rank the root moves once (Fathom's root probe is not
     // thread safe) and restrict every thread to the best-ranked moves.
-    let (filter, probe) = if syzygy::largest() == 0 {
-        (Vec::new(), false)
+    let (filter, probe, root_wdl) = if syzygy::largest() == 0 {
+        (Vec::new(), false, None)
     } else {
         match syzygy::probe_root(root, has_repeated(root, history)) {
             // With DTZ ranking (or a non-winning root) the ranking already
@@ -1739,14 +1752,15 @@ pub fn search(
             Some(rp) => {
                 shared.tb_hits.fetch_add(1, Ordering::Relaxed);
                 let probe = !rp.dtz && rp.wdl > 0;
-                (rp.moves, probe)
+                (rp.moves, probe, Some(rp.wdl))
             }
-            None => (Vec::new(), true),
+            None => (Vec::new(), true, None),
         }
     };
     for t in threads.iter_mut() {
         t.root_filter.clone_from(&filter);
         t.tb_probe = probe;
+        t.root_tb_wdl = root_wdl;
     }
     let (main, helpers) = threads.split_first_mut().expect("at least one thread");
     let vote = main.params.x_vote != 0;

@@ -254,3 +254,61 @@ fn one_node_search_after_another_game_returns_legal_move() {
         assert!(board.parse_move(&mv).is_some(), "illegal bestmove {mv}");
     }
 }
+
+#[test]
+fn syzygy_options_are_safe_without_tables() {
+    let mut e = Engine::new();
+    e.send("uci");
+    let lines = e.until("uciok");
+    for name in ["SyzygyPath", "SyzygyProbeDepth", "Syzygy50MoveRule"] {
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with(&format!("option name {name} type"))),
+            "missing option {name}"
+        );
+    }
+    // A directory without tables loads nothing; an empty value unloads.
+    e.send("setoption name SyzygyPath value /nonexistent-farzin-tb-dir");
+    e.send("setoption name SyzygyProbeDepth value 4");
+    e.send("setoption name Syzygy50MoveRule value false");
+    e.send("setoption name SyzygyPath value <empty>");
+    e.send("isready");
+    e.until("readyok");
+    e.send("position fen 8/8/8/4k3/8/8/8/KR6 w - - 0 1\ngo depth 6");
+    let lines = e.until("bestmove");
+    assert!(lines.iter().any(|l| l.contains(" tbhits 0 ")));
+    let mv = bestmove(&lines);
+    let board = Board::from_fen("8/8/8/4k3/8/8/8/KR6 w - - 0 1").unwrap();
+    assert!(board.parse_move(&mv).is_some(), "illegal bestmove {mv}");
+}
+
+/// With real tables (FARZIN_SYZYGY_PATH), a won KRK root reports tbhits and
+/// a tablebase-winning score.
+#[test]
+fn syzygy_root_probe_with_tables() {
+    let Ok(path) = std::env::var("FARZIN_SYZYGY_PATH") else {
+        return;
+    };
+    let mut e = Engine::new();
+    e.send(&format!("setoption name SyzygyPath value {path}"));
+    e.send("isready");
+    let lines = e.until("readyok");
+    assert!(lines.iter().any(|l| l.contains("Syzygy tablebases loaded")));
+    e.send("position fen 8/8/8/4k3/8/8/2P5/KR6 w - - 0 1\ngo depth 8");
+    let lines = e.until("bestmove");
+    let info = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth"))
+        .unwrap();
+    assert!(!info.contains(" tbhits 0 "), "{info}");
+    let score: i32 = info
+        .split_whitespace()
+        .skip_while(|w| *w != "cp")
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!(score > 20_000, "{info}");
+}
