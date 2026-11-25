@@ -15,6 +15,17 @@ import json
 import chess
 
 
+def phase_bucket(ply):
+    move = ply // 2 + 1
+    if move <= 20:
+        return "moves 1-20"
+    if move <= 40:
+        return "moves 21-40"
+    if move <= 60:
+        return "moves 41-60"
+    return "moves 61+"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("json")
@@ -33,7 +44,8 @@ def main():
         if not w:
             continue
         opp = g["black"] if g["color"] == "white" else g["white"]
-        if w["drop"] >= args.min_drop:
+        # Same move as the reference engine: the "drop" is search noise.
+        if w["drop"] >= args.min_drop and w["played_uci"] != w["best_uci"]:
             phase[w["phase"]] += 1
             pieces.append(w["pieces"])
             drops.append(w["drop"])
@@ -48,8 +60,20 @@ def main():
               f"<= 12 pieces: {sum(p <= 12 for p in pieces)}")
         print(f"move number: median {sorted(move_no)[n // 2]}")
         print(f"eval drop (cp): median {sorted(drops)[n // 2]}")
-        small = sum(1 for g in games if g.get("worst") and g["worst"]["drop"] < args.min_drop)
-        print(f"games without a single decisive mistake (gradual losses): {small}")
+        print(f"games without a single decisive mistake (gradual losses): {len(games) - n}")
+    # Where does a lost game turn bad? First position (Farzin's view) below -100.
+    turn = collections.Counter()
+    plies = []
+    for g in games:
+        curve = g.get("curve") or []
+        for ply, v in enumerate(curve):
+            if v is not None and v < -100:
+                turn[phase_bucket(ply)] += 1
+                plies.append(ply)
+                break
+    if plies:
+        print(f"first eval below -100 cp: median move {sorted(plies)[len(plies) // 2] // 2 + 1}; "
+              f"by move range {dict(sorted(turn.items()))}")
     if args.epd:
         with open(args.epd, "w") as fh:
             for g, w, opp in rows:
