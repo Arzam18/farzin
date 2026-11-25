@@ -3,6 +3,7 @@ use crate::board::Board;
 use crate::evalnet::{EvalAccs, EvalNet};
 use crate::movegen::{legal_moves, MoveList};
 use crate::movepick::{MovePicker, OrderingContext};
+use crate::syzygy;
 use crate::tt::*;
 use crate::types::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -10,6 +11,9 @@ use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 pub const MAX_PLY: usize = 128;
+/// Tablebase win score at the root; `TB_WIN - ply` stays below `MATE_BOUND`
+/// so it is never mistaken for a mate score.
+pub const TB_WIN: i32 = MATE_BOUND - 1 - MAX_PLY as i32;
 const HISTORY_MAX: i32 = 16_384;
 const CORR_SIZE: usize = 16_384;
 const CORR_GRAIN: i32 = 256;
@@ -276,6 +280,8 @@ pub struct Shared {
     /// Milliseconds between the start of the search and `ponderhit`; clock
     /// limits are measured from that moment.
     pub time_offset_ms: AtomicU64,
+    /// Syzygy probes that succeeded during the current search.
+    pub tb_hits: AtomicU64,
 }
 
 impl Shared {
@@ -286,6 +292,7 @@ impl Shared {
             nodes: AtomicU64::new(0),
             ponder: AtomicBool::new(false),
             time_offset_ms: AtomicU64::new(0),
+            tb_hits: AtomicU64::new(0),
         }
     }
 
@@ -338,6 +345,10 @@ pub struct Thread {
     pub sampler: Option<Box<Sampler>>,
     /// Root-side optimism (centipawns), indexed by side to move.
     optimism: [i32; 2],
+    /// Root moves allowed by the tablebases (empty = all legal moves).
+    pub root_filter: Vec<Move>,
+    /// Probe Syzygy WDL tables inside the search.
+    pub tb_probe: bool,
 }
 
 /// Records roughly one in `rate` static evaluations made by the search,
@@ -432,6 +443,8 @@ impl Thread {
             silent: false,
             sampler: None,
             optimism: [0; 2],
+            root_filter: Vec::new(),
+            tb_probe: false,
         }
     }
 
@@ -856,6 +869,59 @@ impl Thread {
             return tt_score;
         }
 
+        // Syzygy WDL probe. Fathom's WDL tables are exact only right after a
+        // zeroing move, so probe when the fifty-move counter is zero.
+        let mut tb_floor = -INF;
+        let mut tb_cap = INF;
+        if self.tb_probe
+            && !root
+            && excluded.is_none()
+            && board.halfmove == 0
+            && board.castling == 0
+        {
+            let pieces = board.occupied().count_ones() as usize;
+            let card = syzygy::largest();
+            if pieces <= card
+                && (pieces < card || depth >= syzygy::PROBE_DEPTH.load(Ordering::Relaxed))
+            {
+                if let Some(wdl) = syzygy::probe_wdl(board) {
+                    shared.tb_hits.fetch_add(1, Ordering::Relaxed);
+                    let draw = i32::from(syzygy::RULE50.load(Ordering::Relaxed));
+                    let (score, bound) = if wdl < -draw {
+                        (-TB_WIN + ply as i32, BOUND_UPPER)
+                    } else if wdl > draw {
+                        (TB_WIN - ply as i32, BOUND_LOWER)
+                    } else {
+                        // Cursed wins / blessed losses score just off zero.
+                        (2 * wdl * draw, BOUND_EXACT)
+                    };
+                    if bound == BOUND_EXACT
+                        || (bound == BOUND_LOWER && score >= beta)
+                        || (bound == BOUND_UPPER && score <= alpha)
+                    {
+                        shared.tt.store(
+                            board.hash,
+                            Move::NONE,
+                            score_to_tt(score, ply),
+                            NO_SCORE,
+                            (depth + 6).min(MAX_PLY as i32 - 1),
+                            bound,
+                            tt_pv,
+                        );
+                        return score;
+                    }
+                    if pv_node {
+                        if bound == BOUND_LOWER {
+                            tb_floor = score;
+                            alpha = alpha.max(score);
+                        } else {
+                            tb_cap = score;
+                        }
+                    }
+                }
+            }
+        }
+
         // Static evaluation.
         let raw_eval;
         let mut eval;
@@ -1073,7 +1139,7 @@ impl Thread {
         let ctx = self.ctx(board, ply);
         let mut picker = MovePicker::new(board, tt_move, self.histories.killers[ply], counter, ctx);
         let original_alpha = alpha;
-        let mut best_score = -INF;
+        let mut best_score = tb_floor;
         let mut best_move = Move::NONE;
         let mut move_count = 0;
         let mut quiets: [Move; 64] = [Move::NONE; 64];
@@ -1085,6 +1151,9 @@ impl Thread {
 
         while let Some(mv) = picker.next(board, &self.histories) {
             if mv == excluded || !board.is_legal(mv) {
+                continue;
+            }
+            if root && !self.root_filter.is_empty() && !self.root_filter.contains(&mv) {
                 continue;
             }
             move_count += 1;
@@ -1352,6 +1421,7 @@ impl Thread {
             }
         }
 
+        best_score = best_score.min(tb_cap);
         if excluded.is_none() {
             let bound = if best_score >= beta {
                 BOUND_LOWER
@@ -1473,11 +1543,12 @@ impl Thread {
             .map(|m| m.to_uci())
             .collect();
         println!(
-            "info depth {depth} seldepth {} score {}{bound} nodes {nodes} nps {} hashfull {} time {elapsed} pv {}",
+            "info depth {depth} seldepth {} score {}{bound} nodes {nodes} nps {} hashfull {} tbhits {} time {elapsed} pv {}",
             self.seldepth,
             format_score(score),
             nodes * 1000 / elapsed,
             shared.tt.hashfull(),
+            shared.tb_hits.load(Ordering::Relaxed),
             pv.join(" ")
         );
     }
@@ -1508,7 +1579,12 @@ impl Thread {
         if let Some(net) = &self.net {
             self.acc.refresh(net, root, 0);
         }
-        let legal = legal_moves(root);
+        let mut legal = legal_moves(root);
+        if !self.root_filter.is_empty() {
+            legal.retain(|m| self.root_filter.contains(m));
+            // Tablebase order: best DTZ rank first.
+            legal.sort_by_key(|m| self.root_filter.iter().position(|f| f == m));
+        }
         let mut result = SearchResult {
             best: legal.first().copied().unwrap_or(Move::NONE),
             ..Default::default()
@@ -1650,7 +1726,28 @@ pub fn search(
     let start = Instant::now();
     shared.stop.store(false, Ordering::Relaxed);
     shared.nodes.store(0, Ordering::Relaxed);
+    shared.tb_hits.store(0, Ordering::Relaxed);
     shared.tt.new_search();
+    // Tablebases: rank the root moves once (Fathom's root probe is not
+    // thread safe) and restrict every thread to the best-ranked moves.
+    let (filter, probe) = if syzygy::largest() == 0 {
+        (Vec::new(), false)
+    } else {
+        match syzygy::probe_root(root, has_repeated(root, history)) {
+            // With DTZ ranking (or a non-winning root) the ranking already
+            // decides; probing inside the search would hide progress.
+            Some(rp) => {
+                shared.tb_hits.fetch_add(1, Ordering::Relaxed);
+                let probe = !rp.dtz && rp.wdl > 0;
+                (rp.moves, probe)
+            }
+            None => (Vec::new(), true),
+        }
+    };
+    for t in threads.iter_mut() {
+        t.root_filter.clone_from(&filter);
+        t.tb_probe = probe;
+    }
     let (main, helpers) = threads.split_first_mut().expect("at least one thread");
     let vote = main.params.x_vote != 0;
     std::thread::scope(|scope| {
@@ -1682,6 +1779,18 @@ pub fn search(
         best.nodes = nodes;
         best
     })
+}
+
+/// Whether any position since the last zeroing move occurred twice
+/// (`history` holds earlier game positions, oldest first).
+fn has_repeated(root: &Board, history: &[u64]) -> bool {
+    let n = history.len();
+    let window = (root.halfmove as usize).min(n);
+    let recent = &history[n - window..];
+    recent
+        .iter()
+        .enumerate()
+        .any(|(i, h)| recent[i + 1..].contains(h) || *h == root.hash)
 }
 
 /// Lazy SMP result selection: every thread votes for its best move,
