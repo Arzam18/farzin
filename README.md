@@ -53,6 +53,7 @@ Built for chess-engine research, reproducible testing, and UCI-compatible play â
 | **Independent Rust search** | Alpha-beta / PVS, iterative deepening, aspiration windows, selective pruning, late-move reductions and search-history heuristics. |
 | **OwnNet neural evaluation** | Independently implemented FZN2 architecture: king-bucketed features, SCReLU, material-output buckets and incremental evaluation. |
 | **Competition-ready UCI** | Standard UCI interface, configurable hash and threads, ponder support, and built-in move/time-management safeguards. |
+| **Syzygy tablebases** | Syzygy WDL/DTZ probing up to 7 pieces (MIT-licensed Fathom prober; verified with 3â€“5 piece tables): exact endgame results in search and DTZ-ranked root moves. |
 | **Fast CPU execution** | Bitboards, transposition tables, Lazy SMP, SIMD evaluation and optimized AVX2/BMI2/PEXT release builds. |
 | **Evidence-driven development** | Paired-opening matches, SPRT, fixed-node experiments, benchmark signatures and CI regression tests. |
 | **Open and auditable** | Source code, network provenance, training tools, raw test reports and reproducible release scripts. |
@@ -96,6 +97,7 @@ uci
 isready
 setoption name Hash value 64
 setoption name Threads value 1
+setoption name SyzygyPath value /path/to/syzygy
 ucinewgame
 position startpos
 go movetime 1000
@@ -156,6 +158,8 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 For portable production packages, use `tools/build_release.sh` with its documented Rust and MinGW toolchains. The CI pipeline also tests Windows UCI behavior, release artifacts and network provenance.
 
+- [CCRL Blitz analysis and improvement report (fa)](docs/ccrl-improvement-2026-11-fa.md)
+- [Testing workflow: SPRT, regression suites, gauntlets (fa)](docs/testing-workflow-fa.md)
 - [Technical reports](docs/)
 - [Benchmark datasets and match results](benchmarks/)
 - [Training and testing utilities](tools/)
