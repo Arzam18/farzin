@@ -55,6 +55,10 @@ def main():
     ap.add_argument("tb")
     ap.add_argument("--count", type=int, default=60)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--min-dtz", type=int, default=0,
+                    help="only positions at least this far (plies) from a zeroing win")
+    ap.add_argument("--quiet", action="store_true",
+                    help="the only winning move must be a quiet non-checking move")
     args = ap.parse_args()
     rng = random.Random(args.seed)
     tb = chess.syzygy.open_tablebase(args.tb)
@@ -82,8 +86,12 @@ def main():
         board.pop()
         if trivial:
             continue
-        found += 1
+        if args.quiet and (board.gives_check(winners[0]) or winners[0].promotion):
+            continue
         dtz = tb.probe_dtz(board)
+        if abs(dtz) < args.min_dtz:
+            continue
+        found += 1
         print(board.epd(bm=winners[0], id=f"tb-only-move {found}", c0=f"dtz {dtz}"))
 
 

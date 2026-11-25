@@ -547,6 +547,7 @@ macro_rules! params_table {
             x_tripleext,
             x_rfpworse,
             x_vote,
+            x_partial,
             probcut_margin,
             singular_depth,
             asp_delta,

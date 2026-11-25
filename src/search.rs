@@ -70,6 +70,9 @@ pub struct Params {
     pub x_rfpworse: i32,
     /// Lazy SMP best-thread voting.
     pub x_vote: i32,
+    /// Keep a root move that completed and beat the previous best in an
+    /// iteration interrupted by the clock (instead of discarding it).
+    pub x_partial: i32,
 }
 
 impl Default for Params {
@@ -116,6 +119,7 @@ impl Default for Params {
             x_tripleext: 0,
             x_rfpworse: 0,
             x_vote: 1,
+            x_partial: 0,
         }
     }
 }
@@ -1662,6 +1666,22 @@ impl Thread {
                 delta += delta / 2;
             }
             if self.stopped && depth > 1 {
+                // pv_len[0] is reset whenever the root is (re)searched, so a
+                // non-empty PV here comes from a root move of this iteration
+                // that was fully searched and raised alpha.
+                if self.params.x_partial != 0
+                    && self.pv_len[0] > 0
+                    && self.pv[0][0] != result.best
+                    && legal.contains(&self.pv[0][0])
+                {
+                    result.best = self.pv[0][0];
+                    result.ponder = if self.pv_len[0] > 1 {
+                        self.pv[0][1]
+                    } else {
+                        Move::NONE
+                    };
+                    result.pv = self.pv[0][..self.pv_len[0]].to_vec();
+                }
                 break;
             }
             if self.pv_len[0] > 0 && legal.contains(&self.pv[0][0]) {
