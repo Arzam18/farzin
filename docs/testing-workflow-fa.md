@@ -19,6 +19,7 @@
 | `tools/ccrl/gauntlet.sh` | گانتلت در برابر حریفان CCRL با تنظیمات ثابت (کتاب، seed، داوری) |
 | `tools/ccrl/compare_gauntlets.py` | مقایسهٔ جفتی دو گانتلت با گشایش‌های یکسان (اختلاف Elo با بازهٔ ۹۵٪) |
 | `tools/ccrl/endgame_starts.py` | استخراج شروع‌های آخر بازی از PGN برای سنجش اثر جدول |
+| `tools/ccrl/tb_match.sh` | همان باینری با و بدون جدول Syzygy از شروع‌های آخر بازی (اثر خالص جدول) |
 
 ## ۲. SPRT
 

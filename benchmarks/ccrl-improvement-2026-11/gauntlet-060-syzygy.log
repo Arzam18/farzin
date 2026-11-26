@@ -1,0 +1,60 @@
+Started game 579 of 600 (Farzin-0.6.0 vs Eleanor-4.1)
+Finished game 575 (Farzin-0.6.0 vs Texel-1.12): 1-0 {White wins by adjudication}
+Started game 580 of 600 (Eleanor-4.1 vs Farzin-0.6.0)
+Finished game 577 (Farzin-0.6.0 vs Thrawn-3.2): 1-0 {White wins by adjudication}
+Started game 581 of 600 (Farzin-0.6.0 vs BlackMarlin-9.0)
+Finished game 579 (Farzin-0.6.0 vs Eleanor-4.1): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 582 of 600 (BlackMarlin-9.0 vs Farzin-0.6.0)
+Finished game 578 (Thrawn-3.2 vs Farzin-0.6.0): 1-0 {White wins by adjudication}
+Started game 583 of 600 (Farzin-0.6.0 vs Altair-7.0.0)
+Finished game 581 (Farzin-0.6.0 vs BlackMarlin-9.0): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 584 of 600 (Altair-7.0.0 vs Farzin-0.6.0)
+Finished game 582 (BlackMarlin-9.0 vs Farzin-0.6.0): 1-0 {White wins by adjudication}
+Started game 585 of 600 (Farzin-0.6.0 vs akimbo-1.0.0)
+Finished game 580 (Eleanor-4.1 vs Farzin-0.6.0): 1/2-1/2 {Draw by adjudication}
+Started game 586 of 600 (akimbo-1.0.0 vs Farzin-0.6.0)
+Finished game 584 (Altair-7.0.0 vs Farzin-0.6.0): 1/2-1/2 {Draw by adjudication}
+Started game 587 of 600 (Farzin-0.6.0 vs Texel-1.12)
+Finished game 583 (Farzin-0.6.0 vs Altair-7.0.0): 1/2-1/2 {Draw by insufficient mating material}
+Started game 588 of 600 (Texel-1.12 vs Farzin-0.6.0)
+Finished game 586 (akimbo-1.0.0 vs Farzin-0.6.0): 1-0 {White wins by adjudication}
+Started game 589 of 600 (Farzin-0.6.0 vs Thrawn-3.2)
+Finished game 588 (Texel-1.12 vs Farzin-0.6.0): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 590 of 600 (Thrawn-3.2 vs Farzin-0.6.0)
+Finished game 585 (Farzin-0.6.0 vs akimbo-1.0.0): 1/2-1/2 {Draw by adjudication}
+Started game 591 of 600 (Farzin-0.6.0 vs Eleanor-4.1)
+Finished game 587 (Farzin-0.6.0 vs Texel-1.12): 1/2-1/2 {Draw by adjudication}
+Started game 592 of 600 (Eleanor-4.1 vs Farzin-0.6.0)
+Finished game 590 (Thrawn-3.2 vs Farzin-0.6.0): 1/2-1/2 {Draw by adjudication}
+Started game 593 of 600 (Farzin-0.6.0 vs BlackMarlin-9.0)
+Finished game 589 (Farzin-0.6.0 vs Thrawn-3.2): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 594 of 600 (BlackMarlin-9.0 vs Farzin-0.6.0)
+Finished game 591 (Farzin-0.6.0 vs Eleanor-4.1): 0-1 {Black wins by adjudication}
+Started game 595 of 600 (Farzin-0.6.0 vs Altair-7.0.0)
+Finished game 592 (Eleanor-4.1 vs Farzin-0.6.0): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 596 of 600 (Altair-7.0.0 vs Farzin-0.6.0)
+Finished game 594 (BlackMarlin-9.0 vs Farzin-0.6.0): 1-0 {White wins by adjudication}
+Started game 597 of 600 (Farzin-0.6.0 vs akimbo-1.0.0)
+Finished game 593 (Farzin-0.6.0 vs BlackMarlin-9.0): 0-1 {Black wins by adjudication}
+Started game 598 of 600 (akimbo-1.0.0 vs Farzin-0.6.0)
+Finished game 596 (Altair-7.0.0 vs Farzin-0.6.0): 1/2-1/2 {Draw by 3-fold repetition}
+Started game 599 of 600 (Farzin-0.6.0 vs Texel-1.12)
+Finished game 595 (Farzin-0.6.0 vs Altair-7.0.0): 1/2-1/2 {Draw by insufficient mating material}
+Started game 600 of 600 (Texel-1.12 vs Farzin-0.6.0)
+Finished game 598 (akimbo-1.0.0 vs Farzin-0.6.0): 1/2-1/2 {Draw by 3-fold repetition}
+Finished game 597 (Farzin-0.6.0 vs akimbo-1.0.0): 1/2-1/2 {Draw by adjudication}
+Finished game 599 (Farzin-0.6.0 vs Texel-1.12): 1-0 {White wins by adjudication}
+Finished game 600 (Texel-1.12 vs Farzin-0.6.0): 1/2-1/2 {Draw by adjudication}
+--------------------------------------------------
+Rank Name                             Elo        +/-       nElo        +/-      Games      Score       Draw           Ptnml(0-2)
+   1 akimbo-1.0.0                   31.35      36.05      59.76      68.10        100      54.5%      48.0%    [0, 9, 24, 16, 1]
+   2 BlackMarlin-9.0                20.87      37.12      38.52      68.10        100      53.0%      52.0%    [1, 8, 26, 14, 1]
+   3 Farzin-0.6.0                    5.21      15.52       9.34      27.80        600      50.7%      51.7%  [7, 61, 155, 70, 7]
+   4 Eleanor-4.1                     3.47      34.15       6.95      68.10        100      50.5%      56.0%    [1, 9, 28, 12, 0]
+   5 Altair-7.0.0                   -6.95      37.41     -12.70      68.10        100      49.0%      46.0%   [0, 15, 23, 11, 1]
+   6 Thrawn-3.2                    -38.37      41.90     -63.19      68.10        100      44.5%      52.0%    [3, 14, 26, 5, 2]
+   7 Texel-1.12                    -41.89      38.71     -74.74      68.10        100      44.0%      56.0%    [2, 15, 28, 3, 2]
+--------------------------------------------------
+Finished match
+Total Time: 01:14:12 (hours:minutes:seconds)
+
