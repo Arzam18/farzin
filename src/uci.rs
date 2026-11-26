@@ -47,6 +47,15 @@ pub fn compiled_features() -> Vec<&'static str> {
     if cfg!(target_feature = "avx512bw") {
         v.push("avx512bw");
     }
+    #[cfg(target_arch = "aarch64")]
+    v.push("neon");
+    #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+    {
+        v.push("dotprod-dispatch");
+        if std::arch::is_aarch64_feature_detected!("dotprod") {
+            v.push("dotprod");
+        }
+    }
     v
 }
 

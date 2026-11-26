@@ -362,10 +362,41 @@ fn transform_half(lo: &[i16], hi: &[i16], out: &mut [u8]) {
             return;
         }
     }
+    #[cfg(target_arch = "aarch64")]
+    {
+        // AArch64 requires NEON. The operation is exactly the scalar
+        // clamp(x) * clamp(y) >> 7, with unsigned narrowing after the shift.
+        unsafe { transform_half_neon(lo, hi, out) };
+        return;
+    }
+    #[cfg(not(target_arch = "aarch64"))]
     for ((o, &x), &y) in out.iter_mut().zip(lo).zip(hi) {
         let x = i32::from(x).clamp(0, 127);
         let y = i32::from(y).clamp(0, 127);
         *o = ((x * y) >> 7) as u8;
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn transform_half_neon(lo: &[i16], hi: &[i16], out: &mut [u8]) {
+    use std::arch::aarch64::*;
+
+    // SAFETY: AArch64 NEON is mandatory. The caller supplies equal-length
+    // slices with a length divisible by 16 (HKA L1 is a multiple of 64).
+    unsafe {
+        let zero = vdupq_n_s16(0);
+        let max = vdupq_n_s16(127);
+        for j in (0..lo.len()).step_by(16) {
+            let a0 = vminq_s16(vmaxq_s16(vld1q_s16(lo.as_ptr().add(j)), zero), max);
+            let b0 = vminq_s16(vmaxq_s16(vld1q_s16(hi.as_ptr().add(j)), zero), max);
+            let a1 = vminq_s16(vmaxq_s16(vld1q_s16(lo.as_ptr().add(j + 8)), zero), max);
+            let b1 = vminq_s16(vmaxq_s16(vld1q_s16(hi.as_ptr().add(j + 8)), zero), max);
+            let p0 = vshrq_n_u16::<7>(vreinterpretq_u16_s16(vmulq_s16(a0, b0)));
+            let p1 = vshrq_n_u16::<7>(vreinterpretq_u16_s16(vmulq_s16(a1, b1)));
+            let packed = vcombine_u8(vqmovn_u16(p0), vqmovn_u16(p1));
+            vst1q_u8(out.as_mut_ptr().add(j), packed);
+        }
     }
 }
 
@@ -394,9 +425,80 @@ fn fc1_dense(x: &[u8; FC1_IN], st: &Stack) -> [i32; FC1_OUT] {
             out
         }
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+    if std::arch::is_aarch64_feature_detected!("dotprod") {
+        // SAFETY: the runtime check guarantees the SDOT instruction is present.
+        return unsafe { fc1_dense_dotprod(x, st) };
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        // DotProd is optional. If unavailable (or not compiled in), use the
+        // baseline NEON multiply-accumulate kernel rather than scalar code.
+        unsafe { fc1_dense_neon(x, st) }
+    }
+    #[cfg(not(any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "avx2"))))]
     {
         std::array::from_fn(|o| st.b1[o] + dot_u8_i8(x, &st.w1[o]))
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn fc1_dense_neon(x: &[u8; FC1_IN], st: &Stack) -> [i32; FC1_OUT] {
+    use std::arch::aarch64::*;
+
+    // `w1s` is [input-chunk][output][4]. Each 16-byte weight load holds
+    // four outputs, with four input weights per output. Pairwise widening
+    // reductions produce four exact i32 dot products.
+    unsafe {
+        let mut acc: [int32x4_t; 8] =
+            std::array::from_fn(|g| vld1q_s32(st.b1.as_ptr().add(4 * g)));
+        for c in 0..FC1_IN / 4 {
+            let packed = u32::from_ne_bytes(x[c * 4..c * 4 + 4].try_into().unwrap()) as i32;
+            let xv = vreinterpretq_s8_s32(vdupq_n_s32(packed));
+            for g in 0..8 {
+                let wp = st.w1s.as_ptr().add(c * 128 + g * 16);
+                let lo = vpaddlq_s16(vmull_s8(vget_low_s8(xv), vld1_s8(wp)));
+                let hi = vpaddlq_s16(vmull_s8(vget_high_s8(xv), vld1_s8(wp.add(8))));
+                let sums_lo = vpadd_s32(vget_low_s32(lo), vget_high_s32(lo));
+                let sums_hi = vpadd_s32(vget_low_s32(hi), vget_high_s32(hi));
+                acc[g] = vaddq_s32(acc[g], vcombine_s32(sums_lo, sums_hi));
+            }
+        }
+        let mut out = [0i32; FC1_OUT];
+        for g in 0..8 {
+            vst1q_s32(out.as_mut_ptr().add(4 * g), acc[g]);
+        }
+        out
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+#[target_feature(enable = "dotprod")]
+unsafe fn fc1_dense_dotprod(x: &[u8; FC1_IN], st: &Stack) -> [i32; FC1_OUT] {
+    use std::arch::aarch64::*;
+
+    // `w1s` is [input-chunk][output][4]. Four output rows occupy 16
+    // consecutive bytes; repeating the four activations lets SDOT produce
+    // four independent output sums in its four i32 lanes.
+    // SAFETY: the caller performs the runtime DotProd feature check; all
+    // fixed-size input and weight slices are fully in bounds.
+    unsafe {
+        let mut acc: [int32x4_t; 8] =
+            std::array::from_fn(|g| vld1q_s32(st.b1.as_ptr().add(4 * g)));
+        for c in 0..FC1_IN / 4 {
+            let packed = u32::from_ne_bytes(x[c * 4..c * 4 + 4].try_into().unwrap()) as i32;
+            let xv = vreinterpretq_s8_s32(vdupq_n_s32(packed));
+            for g in 0..8 {
+                let w = vld1q_s8(st.w1s.as_ptr().add(c * 128 + g * 16));
+                acc[g] = vdotq_s32(acc[g], xv, w);
+            }
+        }
+        let mut out = [0i32; FC1_OUT];
+        for g in 0..8 {
+            vst1q_s32(out.as_mut_ptr().add(4 * g), acc[g]);
+        }
+        out
     }
 }
 
@@ -546,7 +648,18 @@ fn fc0_sparse(input: &[u8], nz: &[u16], w0: &[i8], b0: &[i32; FC0_OUT]) -> [i32;
             out
         }
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+    if std::arch::is_aarch64_feature_detected!("dotprod") {
+        // SAFETY: the runtime check guarantees the SDOT instruction is present.
+        return unsafe { fc0_sparse_dotprod(input, nz, w0, b0) };
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        // DotProd is optional. Retain a full baseline NEON path for every
+        // ARM64 processor, including those without SDOT.
+        unsafe { fc0_sparse_neon(input, nz, w0, b0) }
+    }
+    #[cfg(not(any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "avx2"))))]
     {
         let mut out = *b0;
         for &c in nz {
@@ -561,12 +674,145 @@ fn fc0_sparse(input: &[u8], nz: &[u16], w0: &[i8], b0: &[i32; FC0_OUT]) -> [i32;
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn fc0_sparse_neon(
+    input: &[u8],
+    nz: &[u16],
+    w0: &[i8],
+    b0: &[i32; FC0_OUT],
+) -> [i32; FC0_OUT] {
+    use std::arch::aarch64::*;
+
+    // The 4-byte activation group is repeated in each 8-byte half. Signed
+    // widening multiplies are exact because activations are clamped to 0..127.
+    unsafe {
+        let mut acc: [int32x4_t; 4] =
+            std::array::from_fn(|g| vld1q_s32(b0.as_ptr().add(4 * g)));
+        for &chunk in nz {
+            let c = chunk as usize;
+            let packed = u32::from_ne_bytes(input[c * 4..c * 4 + 4].try_into().unwrap()) as i32;
+            let xv = vreinterpretq_s8_s32(vdupq_n_s32(packed));
+            for g in 0..4 {
+                let wp = w0.as_ptr().add(c * 64 + g * 16);
+                let lo = vpaddlq_s16(vmull_s8(vget_low_s8(xv), vld1_s8(wp)));
+                let hi = vpaddlq_s16(vmull_s8(vget_high_s8(xv), vld1_s8(wp.add(8))));
+                let sums_lo = vpadd_s32(vget_low_s32(lo), vget_high_s32(lo));
+                let sums_hi = vpadd_s32(vget_low_s32(hi), vget_high_s32(hi));
+                acc[g] = vaddq_s32(acc[g], vcombine_s32(sums_lo, sums_hi));
+            }
+        }
+        let mut out = [0i32; FC0_OUT];
+        for g in 0..4 {
+            vst1q_s32(out.as_mut_ptr().add(4 * g), acc[g]);
+        }
+        out
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+#[target_feature(enable = "dotprod")]
+unsafe fn fc0_sparse_dotprod(
+    input: &[u8],
+    nz: &[u16],
+    w0: &[i8],
+    b0: &[i32; FC0_OUT],
+) -> [i32; FC0_OUT] {
+    use std::arch::aarch64::*;
+
+    // `input` is clamped to 0..127 by transform_half, so signed SDOT inputs
+    // preserve the original unsigned-by-signed scalar products exactly.
+    // SAFETY: the caller performs the runtime DotProd feature check. Each
+    // chunk index is produced by find_nonzero_chunks and is below input.len()/4.
+    unsafe {
+        let mut acc: [int32x4_t; 4] =
+            std::array::from_fn(|g| vld1q_s32(b0.as_ptr().add(4 * g)));
+        for &chunk in nz {
+            let c = chunk as usize;
+            let packed = u32::from_ne_bytes(input[c * 4..c * 4 + 4].try_into().unwrap()) as i32;
+            let xv = vreinterpretq_s8_s32(vdupq_n_s32(packed));
+            for g in 0..4 {
+                let w = vld1q_s8(w0.as_ptr().add(c * 64 + g * 16));
+                acc[g] = vdotq_s32(acc[g], xv, w);
+            }
+        }
+        let mut out = [0i32; FC0_OUT];
+        for g in 0..4 {
+            vst1q_s32(out.as_mut_ptr().add(4 * g), acc[g]);
+        }
+        out
+    }
+}
+
 #[inline(always)]
 fn dot_u8_i8(a: &[u8], w: &[i8]) -> i32 {
-    a.iter()
-        .zip(w)
-        .map(|(&x, &y)| i32::from(x) * i32::from(y))
-        .sum()
+    #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+    if std::arch::is_aarch64_feature_detected!("dotprod") {
+        // SAFETY: this helper is called with activations clamped to 0..127.
+        return unsafe { dot_u8_i8_dotprod(a, w) };
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        // The final 32-element layer also has a baseline NEON reduction.
+        unsafe { dot_u8_i8_neon(a, w) }
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        a.iter()
+            .zip(w)
+            .map(|(&x, &y)| i32::from(x) * i32::from(y))
+            .sum()
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn dot_u8_i8_neon(a: &[u8], w: &[i8]) -> i32 {
+    use std::arch::aarch64::*;
+
+    // Activations reaching this layer are clamped to 0..127, so viewing them
+    // as signed bytes preserves the scalar unsigned-by-signed products.
+    unsafe {
+        let len = a.len().min(w.len());
+        let mut sum = 0i32;
+        let mut i = 0;
+        while i + 8 <= len {
+            let x = vreinterpret_s8_u8(vld1_u8(a.as_ptr().add(i)));
+            let y = vld1_s8(w.as_ptr().add(i));
+            let products = vmull_s8(x, y);
+            sum += vaddvq_s32(vpaddlq_s16(products));
+            i += 8;
+        }
+        while i < len {
+            sum += i32::from(a[i]) * i32::from(w[i]);
+            i += 1;
+        }
+        sum
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+#[target_feature(enable = "dotprod")]
+unsafe fn dot_u8_i8_dotprod(a: &[u8], w: &[i8]) -> i32 {
+    use std::arch::aarch64::*;
+    // SAFETY: the caller checks DotProd support; the kernel handles full
+    // 16-byte blocks and computes any remaining tail scalarly.
+    unsafe {
+        let mut acc = vdupq_n_s32(0);
+        let mut i = 0;
+        while i + 16 <= a.len().min(w.len()) {
+            let x = vreinterpretq_s8_u8(vld1q_u8(a.as_ptr().add(i)));
+            let y = vld1q_s8(w.as_ptr().add(i));
+            acc = vdotq_s32(acc, x, y);
+            i += 16;
+        }
+        let mut sum = vaddvq_s32(acc);
+        while i < a.len().min(w.len()) {
+            sum += i32::from(a[i]) * i32::from(w[i]);
+            i += 1;
+        }
+        sum
+    }
 }
 
 /// One position's accumulators: `[2][L1]` int16 plus `[2][8]` PSQT sums.
@@ -1044,6 +1290,24 @@ mod tests {
     }
 
     #[test]
+    fn transform_half_matches_scalar_definition() {
+        let lo: Vec<i16> = (0..128).map(|i| ((i * 97 % 401) as i16) - 180).collect();
+        let hi: Vec<i16> = (0..128).map(|i| ((i * 61 % 379) as i16) - 140).collect();
+        let mut actual = vec![0u8; lo.len()];
+        let expected: Vec<u8> = lo
+            .iter()
+            .zip(&hi)
+            .map(|(&x, &y)| {
+                let x = i32::from(x).clamp(0, 127);
+                let y = i32::from(y).clamp(0, 127);
+                ((x * y) >> 7) as u8
+            })
+            .collect();
+        transform_half(&lo, &hi, &mut actual);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn lazy_chains_with_skipped_evals_and_null_moves() {
         let net = Network::from_bytes(&synthetic(64)).unwrap();
         let mut acc = Accumulators::new();
@@ -1078,6 +1342,142 @@ mod tests {
             }
             board = child;
         }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[test]
+    fn neon_dense_kernels_match_scalar() {
+        let input: Vec<u8> = (0..64).map(|i| ((i * 17 + 9) % 128) as u8).collect();
+        let nz: Vec<u16> = (0..input.len() / 4)
+            .filter(|&c| input[c * 4..c * 4 + 4].iter().any(|&x| x != 0))
+            .map(|c| c as u16)
+            .collect();
+        let w0: Vec<i8> = (0..FC0_OUT * input.len())
+            .map(|i| ((i * 29 % 121) as i16 - 60) as i8)
+            .collect();
+        let b0: [i32; FC0_OUT] = std::array::from_fn(|i| i as i32 * 13 - 71);
+        let expected0 = {
+            let mut out = b0;
+            for &chunk in &nz {
+                let c = chunk as usize;
+                for o in 0..FC0_OUT {
+                    for k in 0..4 {
+                        out[o] += i32::from(input[4 * c + k])
+                            * i32::from(w0[c * 64 + o * 4 + k]);
+                    }
+                }
+            }
+            out
+        };
+        // SAFETY: AArch64 guarantees NEON; all test slices cover the indexed loads.
+        assert_eq!(unsafe { fc0_sparse_neon(&input, &nz, &w0, &b0) }, expected0);
+
+        let mut st = Stack {
+            b0,
+            w0,
+            b1: std::array::from_fn(|i| i as i32 * 7 - 43),
+            w1: [[0; FC1_IN]; FC1_OUT],
+            w1s: [0; FC1_IN * FC1_OUT],
+            b2: 0,
+            w2: [0; FC1_OUT],
+        };
+        for o in 0..FC1_OUT {
+            for j in 0..FC1_IN {
+                let value = ((o * 19 + j * 23) % 101) as i16 - 50;
+                st.w1[o][j] = value as i8;
+                st.w1s[(j / 4) * 128 + o * 4 + j % 4] = value as i8;
+            }
+        }
+        let x: [u8; FC1_IN] = std::array::from_fn(|i| ((i * 11 + 3) % 128) as u8);
+        let expected1: [i32; FC1_OUT] = std::array::from_fn(|o| {
+            st.b1[o]
+                + x.iter()
+                    .zip(st.w1[o].iter())
+                    .map(|(&a, &b)| i32::from(a) * i32::from(b))
+                    .sum::<i32>()
+        });
+        // SAFETY: AArch64 guarantees NEON; all test slices cover the indexed loads.
+        assert_eq!(unsafe { fc1_dense_neon(&x, &st) }, expected1);
+
+        let a: Vec<u8> = (0..37).map(|i| ((i * 7 + 5) % 128) as u8).collect();
+        let w: Vec<i8> = (0..37).map(|i| ((i * 13 % 119) as i16 - 59) as i8).collect();
+        let expected_dot = a
+            .iter()
+            .zip(&w)
+            .map(|(&x, &y)| i32::from(x) * i32::from(y))
+            .sum::<i32>();
+        // SAFETY: AArch64 guarantees NEON; both slices are valid for the loaded range.
+        assert_eq!(unsafe { dot_u8_i8_neon(&a, &w) }, expected_dot);
+    }
+
+    #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
+    #[test]
+    fn dotprod_kernels_match_scalar_when_supported() {
+        if !std::arch::is_aarch64_feature_detected!("dotprod") {
+            return;
+        }
+
+        let input: Vec<u8> = (0..64).map(|i| ((i * 17 + 9) % 128) as u8).collect();
+        let nz: Vec<u16> = (0..input.len() / 4)
+            .filter(|&c| input[c * 4..c * 4 + 4].iter().any(|&x| x != 0))
+            .map(|c| c as u16)
+            .collect();
+        let w0: Vec<i8> = (0..FC0_OUT * input.len())
+            .map(|i| ((i * 29 % 121) as i16 - 60) as i8)
+            .collect();
+        let b0: [i32; FC0_OUT] = std::array::from_fn(|i| i as i32 * 13 - 71);
+        let expected0 = {
+            let mut out = b0;
+            for &chunk in &nz {
+                let c = chunk as usize;
+                for o in 0..FC0_OUT {
+                    for k in 0..4 {
+                        out[o] += i32::from(input[4 * c + k])
+                            * i32::from(w0[c * 64 + o * 4 + k]);
+                    }
+                }
+            }
+            out
+        };
+        // SAFETY: the test returned unless the CPU supports DotProd.
+        assert_eq!(unsafe { fc0_sparse_dotprod(&input, &nz, &w0, &b0) }, expected0);
+
+        let mut st = Stack {
+            b0,
+            w0,
+            b1: std::array::from_fn(|i| i as i32 * 7 - 43),
+            w1: [[0; FC1_IN]; FC1_OUT],
+            w1s: [0; FC1_IN * FC1_OUT],
+            b2: 0,
+            w2: [0; FC1_OUT],
+        };
+        for o in 0..FC1_OUT {
+            for j in 0..FC1_IN {
+                let value = ((o * 19 + j * 23) % 101) as i16 - 50;
+                st.w1[o][j] = value as i8;
+                st.w1s[(j / 4) * 128 + o * 4 + j % 4] = value as i8;
+            }
+        }
+        let x: [u8; FC1_IN] = std::array::from_fn(|i| ((i * 11 + 3) % 128) as u8);
+        let expected1: [i32; FC1_OUT] = std::array::from_fn(|o| {
+            st.b1[o]
+                + x.iter()
+                    .zip(st.w1[o].iter())
+                    .map(|(&a, &b)| i32::from(a) * i32::from(b))
+                    .sum::<i32>()
+        });
+        // SAFETY: the test returned unless the CPU supports DotProd.
+        assert_eq!(unsafe { fc1_dense_dotprod(&x, &st) }, expected1);
+
+        let a: Vec<u8> = (0..37).map(|i| ((i * 7 + 5) % 128) as u8).collect();
+        let w: Vec<i8> = (0..37).map(|i| ((i * 13 % 119) as i16 - 59) as i8).collect();
+        let expected_dot = a
+            .iter()
+            .zip(&w)
+            .map(|(&x, &y)| i32::from(x) * i32::from(y))
+            .sum::<i32>();
+        // SAFETY: the test returned unless the CPU supports DotProd.
+        assert_eq!(unsafe { dot_u8_i8_dotprod(&a, &w) }, expected_dot);
     }
 
     #[test]

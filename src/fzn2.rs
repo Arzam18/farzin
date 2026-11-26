@@ -294,13 +294,54 @@ fn screlu_dot(acc: &[i16], weights: &[i16]) -> i32 {
         // a multiple of 32, and unaligned loads are used.
         unsafe { screlu_dot_avx2(acc, weights) }
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+    {
+        // AArch64 guarantees Advanced SIMD (NEON). The kernel preserves the
+        // exact i16 wrapping multiply and i32 accumulation used by scalar code.
+        unsafe { screlu_dot_neon(acc, weights) }
+    }
+    #[cfg(not(any(
+        all(target_arch = "x86_64", target_feature = "avx2"),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
     {
         screlu_dot_scalar(acc, weights)
     }
 }
 
-#[cfg_attr(all(target_arch = "x86_64", target_feature = "avx2"), allow(dead_code))]
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+#[target_feature(enable = "neon")]
+unsafe fn screlu_dot_neon(acc: &[i16], weights: &[i16]) -> i32 {
+    use std::arch::aarch64::*;
+
+    // SAFETY: AArch64 NEON is part of the Android arm64 baseline. FZN2
+    // hidden widths are multiples of 32, so every 8-lane load is in bounds.
+    unsafe {
+        let zero = vdupq_n_s16(0);
+        let qa = vdupq_n_s16(QA as i16);
+        let mut sum_lo = vdupq_n_s32(0);
+        let mut sum_hi = vdupq_n_s32(0);
+        let mut i = 0;
+        while i < acc.len() {
+            let a = vmaxq_s16(vld1q_s16(acc.as_ptr().add(i)), zero);
+            let a = vminq_s16(a, qa);
+            let w = vld1q_s16(weights.as_ptr().add(i));
+            // QA * |weight| <= 255 * 128 = 32640, so this i16 product
+            // matches the scalar wrapping multiply without overflow.
+            let cw = vmulq_s16(a, w);
+            sum_lo = vmlal_s16(sum_lo, vget_low_s16(cw), vget_low_s16(a));
+            sum_hi = vmlal_s16(sum_hi, vget_high_s16(cw), vget_high_s16(a));
+            i += 8;
+        }
+        vaddvq_s32(vaddq_s32(sum_lo, sum_hi))
+    }
+}
+
+#[cfg_attr(any(
+    all(target_arch = "x86_64", target_feature = "avx2"),
+    all(target_arch = "aarch64", target_feature = "neon")
+), allow(dead_code))]
 #[inline]
 fn screlu_dot_scalar(acc: &[i16], weights: &[i16]) -> i32 {
     let mut sums = [0i32; 32];
