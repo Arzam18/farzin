@@ -124,3 +124,25 @@ builds from different directories produce bit-identical files. The CI job
 `release-build` repeats the build on a fresh GitHub runner, compares it with
 `benchmarks/release-0.6.0/SHA256SUMS` and uploads `dist/` as the artifact
 `farzin-release-candidate`.
+
+## Testing summary
+
+Measured on a 4-core x86-64-v3 cloud machine (details, raw PGNs and the
+commands to reproduce them: `docs/ccrl-improvement-2026-11-fa.md` and
+`benchmarks/ccrl-improvement-2026-11/`):
+
+* **Tablebase effect:** the same 0.6.0 binary with and without 3–5-piece
+  tables, from 319 six-to-eight-piece endgame positions taken from Farzin's
+  CCRL Blitz games, each played with both colours at 10+0.1:
+  +4.4 Elo [+0.7, +8.0]. Ten position pairs were converted to a better
+  result with tables, two to a worse one, and 307 were unchanged.
+* **Gauntlet** against six CCRL Blitz opponents (Thrawn 3.2, Eleanor 4.1,
+  Black Marlin 9.0, Altair 7.0.0, akimbo 1.0.0, Texel 1.12), 600 games at
+  10+0.1 with the same openings as the 0.5.2 baseline: 50.8% vs 50.2%,
+  +3.5 Elo [-19.1, +26.1] (not significant at this sample size).
+* **Regression suites** at 1M nodes (`tests/regression/`): 129/134 with
+  tables vs 126/134 for 0.5.2. Without tables, 0.6.0 plays the same move as
+  0.5.2 in all 134 positions.
+* **Release checks:** `tools/release_check.py` passed on Linux and natively
+  on Windows. CI rebuilt the binaries bit for bit
+  (`benchmarks/release-0.6.0/SHA256SUMS`).
