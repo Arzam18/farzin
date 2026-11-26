@@ -15,6 +15,10 @@
 | `tools/ccrl/analyze_ccrl_games.py` | آمار بازی‌های CCRL: حریف، رنگ، طول بازی، فاز پایان |
 | `tools/ccrl/find_blunders.py` | پیدا کردن اشتباه تعیین‌کننده در هر باخت با موتور مرجع |
 | `tools/ccrl/summarize_blunders.py` | خلاصهٔ اشتباه‌ها و ساخت مجموعهٔ رگرسیون `am` |
+| `tools/pgn_sprt.py` | وضعیت SPRT پنتانومیال (Elo، بازه، LLR، تصمیم) از روی PGN؛ برای ادغام چند جریان موازی |
+| `tools/ccrl/gauntlet.sh` | گانتلت در برابر حریفان CCRL با تنظیمات ثابت (کتاب، seed، داوری) |
+| `tools/ccrl/compare_gauntlets.py` | مقایسهٔ جفتی دو گانتلت با گشایش‌های یکسان (اختلاف Elo با بازهٔ ۹۵٪) |
+| `tools/ccrl/endgame_starts.py` | استخراج شروع‌های آخر بازی از PGN برای سنجش اثر جدول |
 
 ## ۲. SPRT
 
@@ -49,6 +53,7 @@ NEW_OPTS="option.EvalFile=/path/fzn2-c1.nnue" tools/sprt_fastchess.sh c1 ./farzi
 | مجموعه | محتوا | معیار حل |
 |---|---|---|
 | `tb-only-moves.epd` | ۶۰ موقعیت ۴–۵ مهره‌ای که طبق Syzygy **فقط یک** حرکت برنده دارند | انتخاب همان حرکت، **بدون** جدول |
+| `tb-hard-only-moves.epd` | ۶۰ موقعیت سخت‌تر: تنها حرکت برنده آرام است (نه کیش، نه ارتقا) و فاصله تا صفرشدن ≥ ۱۲ نیم‌حرکت | همان؛ یک بار بدون جدول (مهارت آخر بازی) و یک بار با جدول (صحت پروب) |
 | `ccrl-mistakes.epd` | موقعیت پیش از اشتباه تعیین‌کنندهٔ فرزین ۰٫۵٫۲ در باخت‌های CCRL | پرهیز از حرکتی که در CCRL بازی شد (`am`) |
 
 ```sh
@@ -67,6 +72,12 @@ python3 tools/regression_suite.py --nodes 1000000 \
 نسخهٔ جدید با همان `-srand` همان گشایش‌ها را به همان حریف‌ها می‌دهد، پس دو اجرا
 قابل مقایسهٔ جفتی‌اند. بازی‌هایی که با «time forfeit» حریف تمام می‌شوند جداگانه
 گزارش می‌شوند.
+
+```sh
+BOOK=8moves_v3.pgn tools/ccrl/gauntlet.sh ~/ccrl-work ./farzin-base base base.pgn
+BOOK=8moves_v3.pgn tools/ccrl/gauntlet.sh ~/ccrl-work ./farzin-new new new.pgn option.SyzygyPath=/tb
+python3 tools/ccrl/compare_gauntlets.py base.pgn base new.pgn new
+```
 
 ## ۵. ثبت
 

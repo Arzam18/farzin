@@ -203,4 +203,40 @@ Hash برابر ۱۶ مگابایت و یک نخ برای هر موتور، هم
 
 <!-- SECTION:LIMITS -->
 
-<!-- SECTION:REPRO -->
+## ۱۰. بازتولید
+
+همهٔ مراحل با ابزارهای مخزن قابل تکرار است (مسیرها نمونه‌اند):
+
+```sh
+# ۱) حریفان و fastchess از سورس، در همان commitهای آزموده‌شده
+tools/opponents/build_opponents.sh ~/ccrl-work
+
+# ۲) تحلیل صفحه و PGN فرزین در CCRL (PGN فشرده در benchmarks/ccrl-blitz-2026-11-21)
+python3 tools/ccrl/analyze_ccrl_games.py games.pgn --engine "Farzin 0.5.2 64-bit"
+python3 tools/ccrl/find_blunders.py games.pgn --engine "Farzin 0.5.2 64-bit" \
+    --reference ./stockfish --nodes 150000 --lost-cp 150 --json blunders.json
+python3 tools/ccrl/summarize_blunders.py blunders.json --epd tests/regression/ccrl-mistakes.epd
+
+# ۳) گانتلت (همان seed برای هر نسخه) و مقایسهٔ جفتی دو گانتلت
+BOOK=8moves_v3.pgn tools/ccrl/gauntlet.sh ~/ccrl-work ./farzin-0.5.2 Farzin-0.5.2 base.pgn
+BOOK=8moves_v3.pgn tools/ccrl/gauntlet.sh ~/ccrl-work ./farzin-new Farzin-new new.pgn \
+    option.SyzygyPath=/path/syzygy
+python3 tools/ccrl/compare_gauntlets.py base.pgn Farzin-0.5.2 new.pgn Farzin-new
+
+# ۴) SPRT (fastchess) و وضعیت SPRT از روی PGN (برای چند جریان موازی)
+FASTCHESS=fastchess BOOK=UHO_Lichess_4852_v1.epd NEW_OPTS="option.EvalFile=new.nnue" \
+    tools/sprt_fastchess.sh new ./farzin ./farzin
+python3 tools/pgn_sprt.py sprt-results/new.pgn new --elo0 0 --elo1 10
+
+# ۵) رگرسیون
+python3 tools/regression_suite.py --nodes 1000000 --engine ./farzin-0.5.2 \
+    --engine ./farzin-new tests/regression/*.epd
+python3 tools/regression_suite.py --nodes 1000000 --option SyzygyPath=/path/syzygy \
+    --engine ./farzin-new tests/regression/tb-hard-only-moves.epd
+
+# ۶) اثر Syzygy: همان باینری با و بدون جدول از شروع‌های آخر بازی CCRL
+python3 tools/ccrl/endgame_starts.py games.pgn --max-pieces 8 --min-pieces 6 > endgames.epd
+```
+
+جدول‌های Syzygy سه تا پنج مهره‌ای (۲۹۰ فایل، ۹۳۹ مگابایت) از
+`tablebase.lichess.ovh` دریافت و هش هر فایل با فهرست رسمی چک شد.
