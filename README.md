@@ -60,9 +60,14 @@ Built for chess-engine research, reproducible testing, and UCI-compatible play â
 
 ## Download & play
 
-**Farzin 0.5.2 OwnNet** is the licensing and packaging maintenance release;
-search and FZN2-b1 weights are unchanged from 0.5.1. See the
-[0.5.2 verification report](docs/release-0.5.2-report.md).
+**Farzin 0.6.0 OwnNet** (source ready; binaries built and checked by CI)
+adds Syzygy tablebase support for rating lists such as CCRL Blitz, which
+test with 4â€“6-piece tables. Without `SyzygyPath` it searches exactly like
+0.5.2, and the FZN2-b1 weights are unchanged. See the
+[0.6.0 release notes](docs/RELEASE-0.6.md) and the
+[CCRL improvement report (Persian)](docs/ccrl-improvement-2026-11-fa.md).
+The latest published release is 0.5.2
+([verification report](docs/release-0.5.2-report.md)).
 
 **Get the newest tested binaries from the [Releases page](https://github.com/ar-karkon/farzin/releases/latest).**
 

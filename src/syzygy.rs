@@ -38,6 +38,7 @@ struct TbRootMoves {
     moves: [TbRootMove; TB_MAX_MOVES],
 }
 
+#[cfg(not(farzin_no_fathom))]
 extern "C" {
     fn tb_init(path: *const c_char) -> bool;
     fn tb_free();
@@ -87,6 +88,43 @@ extern "C" {
         use_rule50: bool,
         results: *mut TbRootMoves,
     ) -> c_int;
+}
+
+// Stand-ins when build.rs could not compile Fathom (MSVC without C11
+// atomics): nothing ever loads, so the probes below are never reached.
+#[cfg(farzin_no_fathom)]
+static TB_LARGEST: c_uint = 0;
+#[cfg(farzin_no_fathom)]
+unsafe fn tb_init(_path: *const c_char) -> bool {
+    false
+}
+#[cfg(farzin_no_fathom)]
+unsafe fn tb_free() {}
+#[cfg(farzin_no_fathom)]
+#[allow(clippy::too_many_arguments)]
+#[rustfmt::skip]
+unsafe fn tb_probe_wdl_impl(
+    _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: c_uint, _: bool,
+) -> c_uint {
+    TB_RESULT_FAILED
+}
+#[cfg(farzin_no_fathom)]
+#[allow(clippy::too_many_arguments)]
+#[rustfmt::skip]
+unsafe fn tb_probe_root_dtz(
+    _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: c_uint, _: c_uint,
+    _: c_uint, _: bool, _: bool, _: bool, _: *mut TbRootMoves,
+) -> c_int {
+    0
+}
+#[cfg(farzin_no_fathom)]
+#[allow(clippy::too_many_arguments)]
+#[rustfmt::skip]
+unsafe fn tb_probe_root_wdl(
+    _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: c_uint, _: c_uint,
+    _: c_uint, _: bool, _: bool, _: *mut TbRootMoves,
+) -> c_int {
+    0
 }
 
 /// Largest number of pieces covered by the loaded tables (0 = none).
