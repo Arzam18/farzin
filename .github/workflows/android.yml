@@ -127,15 +127,26 @@ jobs:
           done
 
           DOTPROD=dist/farzin-0.6.0-android-arm64-dotprod-research
-          if ! "$BIN/llvm-objdump" -d "$DOTPROD" | grep -Eq '\bsdot\b'; then
+          DOTPROD_DUMP="$RUNNER_TEMP/farzin-dotprod-disassembly.txt"
+          # Tell LLVM's AArch64 disassembler that the optional instruction
+          # extension is available. Keep this feature local to disassembly;
+          # the executable itself still uses runtime-dispatched DotProd
+          # kernels and remains safe on baseline ARM64 processors.
+          "$BIN/llvm-objdump" --mattr=+neon,+dotprod -d "$DOTPROD" > "$DOTPROD_DUMP"
+          if ! grep -Eiq '(^|[[:space:]])sdot([[:space:]]|$)' "$DOTPROD_DUMP"; then
             echo "ERROR: DotProd binary contains no SDOT instruction."
+            echo "DotProd kernel symbols/disassembly candidates:"
+            grep -Ei 'dotprod|hka|sdot' "$DOTPROD_DUMP" | head -80 || true
             exit 1
           fi
+          echo "Verified SDOT instructions in $DOTPROD:"
+          grep -Ei '(^|[[:space:]])sdot([[:space:]]|$)' "$DOTPROD_DUMP" | head -20
 
           for exe in \
             dist/farzin-0.6.0-android-arm64-neon-ownnet \
             dist/farzin-0.6.0-android-arm64-neon-research; do
-            if "$BIN/llvm-objdump" -d "$exe" | grep -Eq '\bsdot\b'; then
+            if "$BIN/llvm-objdump" --mattr=+neon,+dotprod -d "$exe" | \
+                grep -Eiq '(^|[[:space:]])sdot([[:space:]]|$)'; then
               echo "ERROR: baseline NEON binary unexpectedly contains SDOT: $exe"
               exit 1
             fi
