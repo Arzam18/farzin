@@ -1,0 +1,65 @@
+{
+ "farzin-0.6.0": {
+  "ccrl-mistakes.epd": {
+   "solved": 8,
+   "total": 14,
+   "failed": [
+    {
+     "id": "ccrl-blitz 357.9.54 Eleanor 4.1 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "3r3q/5pk1/4p1p1/1r1pP2p/pPp2P1P/P1P1KQP1/8/3R3R b - - 0 1",
+     "played": "Qe8"
+    },
+    {
+     "id": "ccrl-blitz 357.9.274 Equisetum 1.0 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "1k6/6pp/3rbp2/p2N4/NpqnPP2/3nQ1PP/P5BK/1R6 b - - 0 1",
+     "played": "Nc2"
+    },
+    {
+     "id": "ccrl-blitz 357.9.286 Kociolek 2.1 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "5r2/5rb1/2p3pk/2q1Pp2/1pPp1PBP/pP1Q4/P3R2K/6R1 b - - 0 1",
+     "played": "Qe7"
+    },
+    {
+     "id": "ccrl-blitz 357.9.313 Eleanor 4.1 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "2rqrbk1/5pp1/7p/1p1nP3/3BNP2/1P1P1Q2/7P/R4R1K b - - 0 1",
+     "played": "Nb4"
+    },
+    {
+     "id": "ccrl-blitz 357.9.589 Sykora 4.1 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "6r1/5p1k/2b1q3/2p4p/2P1p1P1/4PP1p/R6K/1Q1R4 b - - 0 1",
+     "played": "Qg6"
+    },
+    {
+     "id": "ccrl-blitz 357.9.625 akimbo 1.0.0 64-bit - Farzin 0.5.2 64-bit",
+     "fen": "r1bqr1k1/p4p2/p2p2p1/2pNb2p/P3P3/3QB3/1PP2PPP/3R1RK1 b - - 0 1",
+     "played": "Bxb2"
+    }
+   ]
+  },
+  "tb-only-moves.epd": {
+   "solved": 60,
+   "total": 60,
+   "failed": []
+  },
+  "tb-hard-only-moves.epd": {
+   "solved": 58,
+   "total": 60,
+   "failed": [
+    {
+     "id": "tb-only-move 13",
+     "fen": "8/R7/3br3/8/8/8/K7/2k5 b - - 0 1",
+     "played": "Kc2"
+    },
+    {
+     "id": "tb-only-move 51",
+     "fen": "8/8/1k6/6p1/1N3b2/8/K7/8 b - - 0 1",
+     "played": "Kc5"
+    }
+   ]
+  },
+  "_total": {
+   "solved": 126,
+   "total": 134
+  }
+ }
+}
