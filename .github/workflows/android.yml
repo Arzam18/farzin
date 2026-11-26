@@ -1,0 +1,195 @@
+name: Build Farzin for Android ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+      - "src/**"
+      - "third_party/fathom/**"
+      - "nets/README.md"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+
+jobs:
+  build-android:
+    name: Android ARM64 NEON and DotProd binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.98.0 and Android target
+        uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install Android NDK r27c
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Configure Android ARM64 linker and C compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${{ steps.ndk.outputs.ndk-path }}"
+          BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          CC="$BIN/aarch64-linux-android24-clang"
+          AR="$BIN/llvm-ar"
+          test -x "$CC"
+          test -x "$AR"
+          {
+            echo "ANDROID_NDK_HOME=$NDK"
+            echo "ANDROID_LLVM_BIN=$BIN"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CC"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS=-C target-cpu=generic -C target-feature=+neon"
+            echo "CC_aarch64_linux_android=$CC"
+            echo "AR_aarch64_linux_android=$AR"
+            echo "CFLAGS_aarch64_linux_android=-fPIC -march=armv8-a"
+          } >> "$GITHUB_ENV"
+          echo "Android API 24 linker: $CC"
+
+      - name: Download and verify Farzin OwnNet
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p nets dist
+          curl -fL --retry 4 --retry-all-errors \
+            -o nets/fzn2-b1.nnue.part \
+            https://raw.githubusercontent.com/ar-karkon/farzin/main/nets/fzn2-b1.nnue
+          mv nets/fzn2-b1.nnue.part nets/fzn2-b1.nnue
+          echo "3ec5aa7e6c16b1ea6bd366ad873f4b649da310c91204915000bfd5f1e90ebfc0  nets/fzn2-b1.nnue" | sha256sum -c -
+
+      - name: Download and verify Research HKA network
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors \
+            -o nets/default.nnue.part \
+            https://raw.githubusercontent.com/official-stockfish/networks/master/nn-ad9b42354671.nnue
+          mv nets/default.nnue.part nets/default.nnue
+          echo "ad9b423546714137916bd38978af6fd68d7b8951bef25ff76bf43da72d6cb786  nets/default.nnue" | sha256sum -c -
+
+      - name: Build Farzin OwnNet ARM64 NEON
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --bin farzin \
+            --features ownnet --target aarch64-linux-android
+          cp target/aarch64-linux-android/release/farzin \
+            dist/farzin-0.6.0-android-arm64-neon-ownnet
+
+      - name: Build Farzin Research ARM64 NEON
+        shell: bash
+        env:
+          FARZIN_EVALFILE: nets/default.nnue
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --bin farzin \
+            --target aarch64-linux-android
+          cp target/aarch64-linux-android/release/farzin \
+            dist/farzin-0.6.0-android-arm64-neon-research
+
+      - name: Build Farzin Research ARM64 DotProd
+        shell: bash
+        env:
+          FARZIN_EVALFILE: nets/default.nnue
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --bin farzin \
+            --features arm-dotprod --target aarch64-linux-android
+          cp target/aarch64-linux-android/release/farzin \
+            dist/farzin-0.6.0-android-arm64-dotprod-research
+
+      - name: Strip and validate Android executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="$ANDROID_LLVM_BIN"
+          for exe in dist/farzin-*; do
+            test -s "$exe"
+            "$BIN/llvm-strip" --strip-unneeded "$exe"
+            "$BIN/llvm-readelf" -h "$exe" | grep -q 'AArch64'
+            "$BIN/llvm-readelf" -l "$exe" | grep -q '/system/bin/linker64'
+            file "$exe"
+          done
+
+          DOTPROD=dist/farzin-0.6.0-android-arm64-dotprod-research
+          if ! "$BIN/llvm-objdump" -d "$DOTPROD" | grep -Eq '\bsdot\b'; then
+            echo "ERROR: DotProd binary contains no SDOT instruction."
+            exit 1
+          fi
+
+          for exe in \
+            dist/farzin-0.6.0-android-arm64-neon-ownnet \
+            dist/farzin-0.6.0-android-arm64-neon-research; do
+            if "$BIN/llvm-objdump" -d "$exe" | grep -Eq '\bsdot\b'; then
+              echo "ERROR: baseline NEON binary unexpectedly contains SDOT: $exe"
+              exit 1
+            fi
+          done
+
+          cat > dist/README-ANDROID.txt <<'EOF'
+          Farzin 0.6.0 - Android ARM64 (Bionic, API 24+)
+
+          farzin-0.6.0-android-arm64-neon-ownnet
+            Farzin's own FZN2-b1 network. Recommended edition for engine tournaments.
+            ARM64 NEON; no DotProd requirement.
+
+          farzin-0.6.0-android-arm64-neon-research
+            Research edition using the Stockfish-project CC0 HalfKAv2_hm network.
+            ARM64 NEON baseline; same network as the DotProd Research build.
+
+          farzin-0.6.0-android-arm64-dotprod-research
+            Research edition using the same CC0 HalfKAv2_hm network.
+            Contains SDOT kernels and checks DotProd support at runtime. On ARM64
+            devices without DotProd, it falls back to the baseline NEON HKA kernels.
+
+          All three files are native Android ARM64 UCI executables. Keep the NEON
+          OwnNet binary as the general tournament choice. Use the DotProd Research
+          binary only for compatible CPUs when comparing the Research edition.
+          EOF
+          ls -lh dist/
+
+      - name: Upload Android ARM64 binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: Farzin-Android-ARM64-NEON-and-DotProd
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+
+  arm64-kernel-tests:
+    name: Native ARM64 NEON and DotProd correctness tests
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.98.0
+        uses: dtolnay/rust-toolchain@1.98.0
+
+      - name: Test FZN2 NEON against scalar reference
+        run: cargo test --locked --lib fzn2::tests::simd_matches_scalar -- --exact
+
+      - name: Test HKA NEON feature transform against scalar reference
+        run: cargo test --locked --lib hka::tests::transform_half_matches_scalar_definition -- --exact
+
+      - name: Test HKA NEON dense kernels against scalar reference
+        run: cargo test --locked --lib hka::tests::neon_dense_kernels_match_scalar -- --exact
+
+      - name: Test DotProd kernels against scalar reference when supported
+        run: cargo test --locked --lib --features arm-dotprod hka::tests::dotprod_kernels_match_scalar_when_supported -- --exact
