@@ -474,7 +474,8 @@ unsafe fn fc1_dense_neon(x: &[u8; FC1_IN], st: &Stack) -> [i32; FC1_OUT] {
 }
 
 #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
-#[target_feature(enable = "dotprod")]
+#[inline(never)]
+#[target_feature(enable = "neon,dotprod")]
 unsafe fn fc1_dense_dotprod(x: &[u8; FC1_IN], st: &Stack) -> [i32; FC1_OUT] {
     use std::arch::aarch64::*;
 
@@ -711,7 +712,8 @@ unsafe fn fc0_sparse_neon(
 }
 
 #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
-#[target_feature(enable = "dotprod")]
+#[inline(never)]
+#[target_feature(enable = "neon,dotprod")]
 unsafe fn fc0_sparse_dotprod(
     input: &[u8],
     nz: &[u16],
@@ -792,7 +794,8 @@ unsafe fn dot_u8_i8_neon(a: &[u8], w: &[i8]) -> i32 {
 }
 
 #[cfg(all(target_arch = "aarch64", feature = "arm-dotprod"))]
-#[target_feature(enable = "dotprod")]
+#[inline(never)]
+#[target_feature(enable = "neon,dotprod")]
 unsafe fn dot_u8_i8_dotprod(a: &[u8], w: &[i8]) -> i32 {
     use std::arch::aarch64::*;
     // SAFETY: the caller checks DotProd support; the kernel handles full
