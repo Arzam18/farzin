@@ -1,17 +1,21 @@
-# Farzin 0.5.2 OwnNet
+# Farzin 0.6.0 OwnNet
 
-Farzin is a UCI chess engine. This maintenance release keeps the search,
-evaluation, time management and FZN2-b1 weights from 0.5.1 unchanged.
+Farzin is a UCI chess engine. This release adds Syzygy endgame tablebase
+support (options `SyzygyPath`, `SyzygyProbeDepth`, `Syzygy50MoveRule`).
+Without `SyzygyPath` it searches exactly like 0.5.2; the FZN2-b1 weights are
+unchanged. Tablebase files are not included.
 
 ## Install in a chess GUI
 
 1. Extract the ZIP into a folder of your choice.
 2. In your UCI chess GUI (Arena, Cute Chess, Banksia, Fritz/ChessBase, etc.),
    choose the option to add/install a new UCI engine.
-3. Select `farzin-0.5.2-windows-x64-avx2-bmi2.exe`.
+3. Select `farzin-0.6.0-windows-x64-avx2-bmi2.exe`.
 4. Set Hash (default 16 MB), Threads (default 1), Ponder (default off) and
    Move Overhead (default 50 ms) as appropriate. Keep EvalFile at `<default>`
    to use the included network. No separate network file is needed.
+5. Optional: set SyzygyPath to the folder holding Syzygy tablebase files
+   (`.rtbw`/`.rtbz`; separate several folders with `;`).
 
 Windows 10/11 x64 is required. No Rust, Python or development tools are
 needed to run the executable.
@@ -37,6 +41,7 @@ Stockfish weights are included in this edition. Full details are in
 NETWORK-PROVENANCE.md.
 
 Farzin is GPL-3.0-only. See LICENSE, THIRD_PARTY_NOTICES.md and
-RUNTIME-LICENSES/ for linked-library notices. Corresponding
+RUNTIME-LICENSES/ for linked-library notices (THIRD_PARTY_NOTICES.md
+includes the MIT licence of the Fathom tablebase prober). Corresponding
 source (including weights and build scripts), alternatives and release notes:
-https://github.com/ar-karkon/farzin/releases/tag/v0.5.2
+https://github.com/ar-karkon/farzin/releases/tag/v0.6.0

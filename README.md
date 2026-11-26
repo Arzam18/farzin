@@ -53,15 +53,21 @@ Built for chess-engine research, reproducible testing, and UCI-compatible play �
 | **Independent Rust search** | Alpha-beta / PVS, iterative deepening, aspiration windows, selective pruning, late-move reductions and search-history heuristics. |
 | **OwnNet neural evaluation** | Independently implemented FZN2 architecture: king-bucketed features, SCReLU, material-output buckets and incremental evaluation. |
 | **Competition-ready UCI** | Standard UCI interface, configurable hash and threads, ponder support, and built-in move/time-management safeguards. |
+| **Syzygy tablebases** | Syzygy WDL/DTZ probing up to 7 pieces (MIT-licensed Fathom prober; verified with 3–5 piece tables): exact endgame results in search and DTZ-ranked root moves. |
 | **Fast CPU execution** | Bitboards, transposition tables, Lazy SMP, SIMD evaluation and optimized AVX2/BMI2/PEXT release builds. |
 | **Evidence-driven development** | Paired-opening matches, SPRT, fixed-node experiments, benchmark signatures and CI regression tests. |
 | **Open and auditable** | Source code, network provenance, training tools, raw test reports and reproducible release scripts. |
 
 ## Download & play
 
-**Farzin 0.5.2 OwnNet** is the licensing and packaging maintenance release;
-search and FZN2-b1 weights are unchanged from 0.5.1. See the
-[0.5.2 verification report](docs/release-0.5.2-report.md).
+**Farzin 0.6.0 OwnNet** (source ready; binaries built and checked by CI)
+adds Syzygy tablebase support for rating lists such as CCRL Blitz, which
+test with 4–6-piece tables. Without `SyzygyPath` it searches exactly like
+0.5.2, and the FZN2-b1 weights are unchanged. See the
+[0.6.0 release notes](docs/RELEASE-0.6.md) and the
+[CCRL improvement report (Persian)](docs/ccrl-improvement-2026-11-fa.md).
+The latest published release is 0.5.2
+([verification report](docs/release-0.5.2-report.md)).
 
 **Get the newest tested binaries from the [Releases page](https://github.com/ar-karkon/farzin/releases/latest).**
 
@@ -96,6 +102,7 @@ uci
 isready
 setoption name Hash value 64
 setoption name Threads value 1
+setoption name SyzygyPath value /path/to/syzygy
 ucinewgame
 position startpos
 go movetime 1000
@@ -156,6 +163,8 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 For portable production packages, use `tools/build_release.sh` with its documented Rust and MinGW toolchains. The CI pipeline also tests Windows UCI behavior, release artifacts and network provenance.
 
+- [CCRL Blitz analysis and improvement report (fa)](docs/ccrl-improvement-2026-11-fa.md)
+- [Testing workflow: SPRT, regression suites, gauntlets (fa)](docs/testing-workflow-fa.md)
 - [Technical reports](docs/)
 - [Benchmark datasets and match results](benchmarks/)
 - [Training and testing utilities](tools/)

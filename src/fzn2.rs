@@ -444,8 +444,8 @@ impl Accumulators {
         }
         // Cache contents depend on the weights, so always rebuild it on a
         // root refresh (cheap: entries start empty and fill lazily).
-        for p in 0..2 {
-            self.cache[p] = (0..2 * net.king_buckets)
+        for side in self.cache.iter_mut() {
+            *side = (0..2 * net.king_buckets)
                 .map(|_| CacheEntry {
                     acc: net.ft_bias.clone(),
                     bbs: [0; 12],

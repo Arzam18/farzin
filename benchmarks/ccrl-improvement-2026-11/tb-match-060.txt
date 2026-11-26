@@ -1,0 +1,20 @@
+Farzin 0.6.0 with Syzygy 3-4-5 (farzin-tb) vs the same binary without (farzin-notb)
+tools/ccrl/tb_match.sh: 319 endgame starts (6-8 pieces) from Farzin's CCRL Blitz games, each played twice with colours reversed, 10+0.1, Hash 16, concurrency 4
+
+games W/D/L 83/480/75  pairs 319  pentanomial [0, 2, 307, 10, 0]
+score 50.63%  Elo +4.4 [+0.7, +8.0]
+LLR -1.83 [-2.94, 2.94]  (elo0=0, elo1=10)  continue
+
+Pairs with a different result (round, farzin-tb pair score, start FEN, games):
+22 tb-score 0.5 8/5k2/p7/2b5/7K/P3R3/8/8 w - - 0 1 [(0.5, 'W', '1/2-1/2', 'normal', 107, 6), (0.0, 'B', '1-0', 'adjudication', 94, 4)]
+31 tb-score 1.5 8/8/6k1/2BP3n/1p6/1P3K2/8/8 b - - 0 1 [(1.0, 'W', '1-0', 'adjudication', 59, 5), (0.5, 'B', '1/2-1/2', 'normal', 140, 5)]
+33 tb-score 1.5 8/k7/7p/7P/3b2K1/6P1/8/8 w - - 0 1 [(1.0, 'B', '0-1', 'adjudication', 101, 6), (0.5, 'W', '1/2-1/2', 'normal', 181, 3)]
+54 tb-score 0.5 4n3/4r1k1/7p/8/6P1/3Q1PK1/8/8 w - - 0 1 [(0.0, 'B', '1-0', 'adjudication', 90, 6), (0.5, 'W', '1/2-1/2', 'normal', 139, 6)]
+74 tb-score 1.5 8/2R5/3k4/8/r4P2/2R1K3/1P5r/8 w - - 0 1 [(1.0, 'W', '1-0', 'adjudication', 164, 5), (0.5, 'B', '1/2-1/2', 'normal', 76, 5)]
+89 tb-score 1.5 8/1p6/2b2nk1/8/6r1/PQ6/8/K7 b - - 0 1 [(1.0, 'B', '0-1', 'adjudication', 164, 7), (0.5, 'W', '1/2-1/2', 'normal', 383, 6)]
+99 tb-score 1.5 8/4Bk2/3P4/8/b2K2p1/8/2r5/5N2 w - - 0 1 [(1.0, 'B', '0-1', 'adjudication', 37, 4), (0.5, 'W', '1/2-1/2', 'normal', 110, 7)]
+102 tb-score 1.5 5nk1/7n/8/8/B6B/2p2KP1/8/8 b - - 0 1 [(0.5, 'B', '1/2-1/2', 'normal', 62, 3), (1.0, 'W', '1-0', 'adjudication', 159, 4)]
+123 tb-score 1.5 8/2p5/2Np4/3n4/1P6/4k3/2KN4/8 w - - 0 1 [(1.0, 'W', '1-0', 'adjudication', 36, 5), (0.5, 'B', '1/2-1/2', 'normal', 339, 4)]
+258 tb-score 1.5 8/2p5/8/3k4/P5p1/1K4Pn/6N1/8 w - - 0 1 [(0.5, 'B', '1/2-1/2', 'normal', 28, 3), (1.0, 'W', '1-0', 'adjudication', 94, 4)]
+279 tb-score 1.5 8/5R2/2kr3p/p7/7P/5KN1/8/8 b - - 0 1 [(1.0, 'W', '1-0', 'adjudication', 121, 5), (0.5, 'B', '1/2-1/2', 'normal', 132, 2)]
+284 tb-score 1.5 8/8/kp3K2/p4R2/2R5/6q1/8/8 b - - 0 1 [(0.5, 'W', '1/2-1/2', 'normal', 95, 2), (1.0, 'B', '0-1', 'adjudication', 88, 4)]

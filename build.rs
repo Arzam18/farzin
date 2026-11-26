@@ -164,6 +164,46 @@ fn main() {
     }
 
     embed_network(&out_dir);
+    build_fathom();
+}
+
+/// Compile the vendored Fathom Syzygy tablebase prober (MIT licence, see
+/// `third_party/fathom/LICENSE`). Only the probing core is built; the helper
+/// API is disabled because Farzin has its own move generator.
+fn build_fathom() {
+    for f in [
+        "tbprobe.c",
+        "tbprobe.h",
+        "tbconfig.h",
+        "tbchess.c",
+        "stdendian.h",
+    ] {
+        println!("cargo:rerun-if-changed=third_party/fathom/{f}");
+    }
+    println!("cargo:rustc-check-cfg=cfg(farzin_no_fathom)");
+    let mut build = cc::Build::new();
+    build
+        .file("third_party/fathom/tbprobe.c")
+        .include("third_party/fathom")
+        .define("TB_NO_HELPER_API", None)
+        .opt_level(2)
+        .warnings(false);
+    let msvc = build.get_compiler().is_like_msvc();
+    if msvc {
+        // Fathom uses <stdatomic.h>, which MSVC (VS 2022 17.5+) only
+        // offers in C11 mode with its C11-atomics switch.
+        build.flag("/std:c11").flag("/experimental:c11atomics");
+    }
+    if let Err(e) = build.try_compile("fathom") {
+        // Release builds (GNU toolchains) must have tablebase support. An
+        // MSVC developer build without a C11-atomics capable compiler gets
+        // a stub: SyzygyPath then loads nothing.
+        if !msvc {
+            panic!("compiling third_party/fathom failed: {e}");
+        }
+        println!("cargo:warning=Fathom not built ({e}); Syzygy support disabled");
+        println!("cargo:rustc-cfg=farzin_no_fathom");
+    }
 }
 
 /// Software PEXT (build time only).

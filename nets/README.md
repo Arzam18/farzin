@@ -43,6 +43,19 @@ Two kinds of network are kept here:
   **Embedded in the OwnNet edition since 0.5.1.**
   Effective training data: 105M (a1) + 100M positions, all from Farzin's own
   play with CC0 labels; no third-party restrictions.
+* `fzn2-c1.nnue` — **candidate, not embedded** (November 2026, see
+  `docs/ccrl-improvement-2026-11-fa.md`). Same architecture, warm-started
+  from `fzn2-b1` and trained 3 more epochs (`farzin-train2 kb=4m hidden=768
+  epochs=3 lr=0.0005 threads=2`, 24 min) on 59.3M new tree-sampled positions
+  (`datagen games=14100 soft_nodes=2500 hard_nodes=20000 tree_rate=48
+  random_move_pm=50 random_plies=8 seed=20261125`, same mover and CC0 labels
+  as b1). Held-out (200k positions): MSE 0.002364 vs 0.002470 for b1
+  (-4.3%), mean absolute error 126.5 vs 130 cp.
+  sha256 `b96853834fd1f221d6f2692cde0339e734b76344eeff86fc8b208636b384dcee`.
+  vs fzn2-b1 (same binary, `EvalFile`), 8+0.08, UHO book: +4.2 Elo
+  [-3.6, +11.9] after 1088 pairs, SPRT [0,10] undecided (LLR -0.54), so
+  **not adopted**; kept for a longer test on faster hardware
+  (`benchmarks/ccrl-improvement-2026-11/sprt-c1-vs-b1.*`).
 * `fzn2-a1.nnue` — **Farzin's own FZN2 net** (Farzin 0.4, Track B):
   (4 mirrored king buckets x 768 -> 768) x 2 -> 1 x 8, SCReLU (`src/fzn2.rs`).
   Data: 105.4M positions *sampled from Farzin's search trees* (`datagen

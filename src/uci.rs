@@ -365,6 +365,23 @@ impl Engine {
                 }
             }
             "clear hash" => self.new_game(),
+            "syzygypath" => {
+                let n = crate::syzygy::init(value);
+                if n > 0 {
+                    println!("info string Syzygy tablebases loaded: up to {n} pieces");
+                } else if !value.is_empty() && value != "<empty>" {
+                    println!("info string no Syzygy tablebases found in {value}");
+                }
+            }
+            "syzygyprobedepth" => {
+                if let Ok(d) = value.parse::<i32>() {
+                    crate::syzygy::PROBE_DEPTH
+                        .store(d.clamp(1, 100), std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            "syzygy50moverule" => {
+                crate::syzygy::RULE50.store(value != "false", std::sync::atomic::Ordering::Relaxed);
+            }
             // Pondering is driven entirely by `go ponder` / `ponderhit`.
             "ponder" => {}
             "evalfile" => {
@@ -422,6 +439,9 @@ impl Engine {
                 println!("option name Clear Hash type button");
                 println!("option name Ponder type check default false");
                 println!("option name EvalFile type string default <default>");
+                println!("option name SyzygyPath type string default <empty>");
+                println!("option name SyzygyProbeDepth type spin default 1 min 1 max 100");
+                println!("option name Syzygy50MoveRule type check default true");
                 // Research/tuning options are hidden in the competition
                 // edition (they stay settable for tools when FARZIN_TUNE=1).
                 if !OWNNET || std::env::var_os("FARZIN_TUNE").is_some() {
@@ -527,6 +547,7 @@ macro_rules! params_table {
             x_tripleext,
             x_rfpworse,
             x_vote,
+            x_partial,
             probcut_margin,
             singular_depth,
             asp_delta,

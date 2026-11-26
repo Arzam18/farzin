@@ -10,6 +10,7 @@ pub mod movegen;
 pub mod movepick;
 pub mod net;
 pub mod search;
+pub mod syzygy;
 pub mod tt;
 pub mod types;
 pub mod uci;

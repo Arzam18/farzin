@@ -1,0 +1,18 @@
+fzn2-c1 vs fzn2-b1 (same binary farzin-dev1, EvalFile), fastchess, UHO_Lichess_4852_v1, 8+0.08, Hash 16, 1 thread, 4 streams with different seeds, combined:
+games W/D/L 506/1191/480  pairs 1088  pentanomial [15, 235, 561, 263, 14]
+score 50.60%  Elo +4.2 [-3.6, +11.9]
+LLR -0.54 [-2.94, 2.94]  (elo0=0.0, elo1=10.0)  continue
+
+per stream:
+== sprt "seed": 5151
+games W/D/L 116/273/108  pairs 248  pentanomial [4, 46, 140, 54, 4]
+score 50.81%  Elo +5.6 [-10.2, +21.4]
+== sprt2 "seed": 6262
+games W/D/L 146/345/129  pairs 310  pentanomial [3, 64, 160, 79, 4]
+score 51.37%  Elo +9.5 [-4.8, +23.9]
+== sprt3 "seed": 7373
+games W/D/L 140/277/143  pairs 280  pentanomial [4, 70, 134, 69, 3]
+score 49.73%  Elo -1.9 [-17.6, +13.9]
+== sprt4 "seed": 8484
+games W/D/L 104/296/100  pairs 250  pentanomial [4, 55, 127, 61, 3]
+score 50.40%  Elo +2.8 [-13.6, +19.1]

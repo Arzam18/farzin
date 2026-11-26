@@ -1,0 +1,3 @@
+games W/D/L 72/200/65  pairs 168  pentanomial [1, 32, 94, 41, 0]
+score 51.04%  Elo +7.2 [-10.5, +25.0]
+LLR 0.32 [-2.20, 2.20]  (elo0=0.0, elo1=8.0)  continue
